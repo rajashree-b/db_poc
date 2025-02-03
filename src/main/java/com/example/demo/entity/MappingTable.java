@@ -14,8 +14,8 @@ import lombok.*;
 public class MappingTable {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // Auto-generate primary key (if needed)
-    private int id;  // Add an ID column for uniqueness (optional)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
 
     @Column(name = "source_schema_name", length = 20, nullable = false)
     private String sourceSchemaName;

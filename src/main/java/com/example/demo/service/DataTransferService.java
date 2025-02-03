@@ -8,7 +8,9 @@ import com.example.demo.repository.EmpRepository;
 import com.example.demo.repository.MappingTableRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -24,47 +26,43 @@ public class DataTransferService {
     @Autowired
     private MappingTableRepository mappingTableRepository;
 
-    // Helper method to generate a random alphabet
     private char generateRandomAlphabet() {
-        return (char) ('a' + new Random().nextInt(26)); // Random lowercase letter
+        return (char) ('a' + new Random().nextInt(26));
     }
 
-    // Helper method to generate a random number
     private int generateRandomNumber() {
-        return new Random().nextInt(10); // Single-digit random number
+        return new Random().nextInt(10);
     }
 
+    @Transactional
     public void transformAndInsertData() {
-        // Retrieve all mapping entries from MappingTable
+        List<Employees> employees = employeeRepository.findAll();
         List<MappingTable> mappings = mappingTableRepository.findAll();
 
         for (MappingTable mapping : mappings) {
-            if (!mapping.getSecure()) {  // Only process non-secure mappings
-                String sourceColumnName = mapping.getSourceColumnName();
+            if (!mapping.getSecure() && "pan".equals(mapping.getSourceColumnName())) {
+                // Proceed only if 'secure' is false and source column is 'pan'
                 String pattern = mapping.getPattern();
-                String destinationColumnName = mapping.getDestinationColumnName(); // Assuming this field exists in MappingTable
 
-                // Fetch data from Employees table based on source column name
-                List<Employees> employees = employeeRepository.findAll();
+                List<Emp> empList = new ArrayList<>();
 
                 for (Employees employee : employees) {
-                    // Prepare the transformed value based on the column and pattern
-                    String transformedValue = applyPattern(employee, sourceColumnName, pattern);
+                    String transformedValue = applyPattern(employee, "pan", pattern);
 
-                    // Prepare the Emp entity with transformed values
-                    Emp emp = new Emp();
+                    // Only insert if transformed PAN is different from original
+                    if (transformedValue != null && !transformedValue.equals(employee.getPan())) {
+                        Emp emp = new Emp();
+                        emp.setFirstName(employee.getFname());
+                        emp.setLastName(employee.getLname());
+                        emp.setPanNumber(transformedValue);
 
-                    // Mapping for first_name and last_name
-                    emp.setFirstName(employee.getFname()); // first_name as fname
-                    emp.setLastName(employee.getLname()); // last_name as lname
-
-                    // Mapping for pan_number with transformation
-                    if ("pan".equals(sourceColumnName)) {
-                        emp.setPanNumber(transformedValue); // Apply pattern transformation to pan_number
+                        empList.add(emp);
                     }
+                }
 
-                    // Insert transformed data into the Emp table
-                    empRepository.save(emp);
+                // Insert only modified PAN values
+                if (!empList.isEmpty()) {
+                    empRepository.saveAll(empList);
                 }
             }
         }
@@ -73,38 +71,34 @@ public class DataTransferService {
     private String applyPattern(Employees employee, String sourceColumn, String pattern) {
         String value = "";
 
-        // Get the value based on the source column
         switch (sourceColumn) {
             case "id":
-                value = employee.getId().toString(); // id remains unchanged
+                value = employee.getId().toString();
                 break;
             case "fname":
-                value = employee.getFname(); // fname remains unchanged
+                value = employee.getFname();
                 break;
             case "lname":
-                value = employee.getLname(); // lname remains unchanged
+                value = employee.getLname();
                 break;
             case "pan":
-                value = employee.getPan(); // pan needs transformation
+                value = employee.getPan();
                 break;
         }
 
-        // Apply pattern transformation for pan_number (if the column is 'pan')
         if (value != null && "pan".equals(sourceColumn)) {
             StringBuilder result = new StringBuilder();
             for (char ch : pattern.toCharArray()) {
                 if (ch == '$') {
-                    result.append(generateRandomAlphabet()); // Replace $ with a random letter
+                    result.append(generateRandomAlphabet());
                 } else if (ch == '#') {
-                    result.append(generateRandomNumber()); // Replace # with a random digit
+                    result.append(generateRandomNumber());
                 } else {
-                    result.append(ch); // Keep other characters as is
+                    result.append(ch);
                 }
             }
             return result.toString();
         }
-
-        // Return original value for non-pan columns
         return value;
     }
 }
